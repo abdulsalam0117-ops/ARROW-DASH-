@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Arrow Dash - Realistic Coins</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: #030108;
+            overflow: hidden;
+            font-family: 'Segoe UI', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #game-container {
+            position: relative;
+            width: 400px; 
+            height: 700px;
+            max-width: 100vw;
+            max-height: 100vh;
+            overflow: hidden;
+            background: #05010d;
+        }
+
+        #gameCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            cursor: pointer;
+        }
+
+        /* Coin HUD */
+        #coin-hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            background: rgba(255, 215, 0, 0.1);
+            padding: 6px 16px;
+            border-radius: 20px;
+            border: 1.5px solid rgba(255, 215, 0, 0.5);
+            backdrop-filter: blur(8px);
+        }
+
+        /* Custom SVG Coin icon for HUD to avoid box issues */
+        .coin-icon {
+            width: 20px;
+            height: 20px;
+            background: radial-gradient(circle, #ffe066, #ffb300);
+            border-radius: 50%;
+            border: 2px solid #ffd700;
+            box-shadow: 0 0 5px #ffd700;
+        }
+
+        #coinCount { 
+            color: #ffd700; 
+            font-weight: 800; 
+            font-size: 18px;
+            margin-left: 8px;
+            text-shadow: 0 0 10px #ffd700;
+        }
+
+        #settings-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 50;
+            width: 45px;
+            height: 45px;
+            background: rgba(0, 170, 255, 0.1);
+            border: 2px solid #00aaff;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            color: #fff;
+            box-shadow: 0 0 15px rgba(0, 170, 255, 0.3);
+        }
+
+        /* Score HUD - Top Position */
+        #hud {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 5;
+            display: none;
+            text-align: center;
+            pointer-events: none;
+        }
+
+        #currentScoreHud {
+            color: #fff;
+            font-size: 60px;
+            font-weight: 900;
+            text-shadow: 0 0 20px #ff00ff;
+            margin: 0;
+            opacity: 0.9;
+            line-height: 1;
+        }
+
+        #bestScoreLabel {
+            color: #ffd700;
+            font-size: 12px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            opacity: 0.7;
+            margin-top: -5px;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            background: rgba(10, 5, 25, 0.98);
+            padding: 30px 20px;
+            border-radius: 30px;
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            pointer-events: auto;
+            width: 88%;
+            backdrop-filter: blur(20px);
+            max-height: 90%;
+        }
+
+        .screen.active { display: flex; }
+
+        .menu-btn {
+            background: linear-gradient(135deg, #0ff 0%, #0088aa 100%);
+            color: #000;
+            border: none;
+            padding: 14px 0;
+            width: 100%;
+            max-width: 220px;
+            font-size: 18px;
+            font-weight: 800;
+            text-transform: uppercase;
+            border-radius: 12px;
+            cursor: pointer;
+            margin: 8px 0;
+        }
+
+        .menu-btn:active { transform: scale(0.96); }
+
+        #shop-list {
+            width: 100%;
+            overflow-y: auto;
+            margin: 15px 0;
+            padding-right: 5px;
+        }
+
+        #shop-list::-webkit-scrollbar { width: 4px; }
+        #shop-list::-webkit-scrollbar-thumb { background: #0ff; border-radius: 10px; }
+
+        .shop-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.04);
+            margin-bottom: 8px;
+            padding: 12px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .buy-btn {
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 800;
+            cursor: pointer;
+            border: none;
+            min-width: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="coin-hud">
+            <div class="coin-icon"></div>
+            <span id="coinCount">0</span>
+        </div>
+
+        <div id="settings-btn" onclick="openSettings()">⚙️</div>
+
+        <canvas id="gameCanvas" width="400" height="700"></canvas>
+
+        <div id="hud">
+            <div id="currentScoreHud">0</div>
+            <div id="bestScoreLabel">RECORD: 0</div>
+        </div>
+
+        <div id="ui-layer">
+            <div id="homeScreen" class="screen active">
+                <h1 style="color:#fff; font-size: 34px; margin:0; letter-spacing: 2px;">NEON DASH</h1>
+                <p style="color: #666; font-size: 12px; margin-bottom: 25px;">REALISTIC PHYSICS & 25 SKINS</p>
+                <button class="menu-btn" onclick="startGame()">ENTER GAME</button>
+                <button class="menu-btn" onclick="openShop()" style="background: #111; color: #ffd700; border: 1.5px solid #ffd700;">STORE</button>
+            </div>
+
+            <div id="shopScreen" class="screen">
+                <h1 style="color:#0ff; font-size: 22px; margin-bottom: 5px;">STORE</h1>
+                <div id="shop-list"></div>
+                <button class="menu-btn" onclick="openHome()" style="background: transparent; color: #555; font-size: 14px;">BACK TO MENU</button>
+            </div>
+
+            <div id="settingsScreen" class="screen">
+                <h1 style="color:#0ff">PAUSED</h1>
+                <button class="menu-btn" onclick="resumeGame()">RESUME</button>
+                <button class="menu-btn" onclick="startGame()">RESTART</button>
+                <button class="menu-btn" onclick="openHome()" style="background: #222; color: #fff;">QUIT</button>
+            </div>
+
+            <div id="gameOverScreen" class="screen">
+                <h1 style="color: #ff3366; font-size: 32px; margin:0;">SYSTEM FAILURE</h1>
+                <div style="color: #fff; font-size: 22px; margin: 15px 0;">SCORE: <span id="finalScore" style="color:#0ff">0</span></div>
+                <button class="menu-btn" onclick="startGame()">REBOOT</button>
+                <button class="menu-btn" onclick="openHome()">MAIN MENU</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const arrowsData = [
+            { id: 0, name: "Neon Pink", color: "#ff00ff", price: 0 },
+            { id: 1, name: "Sky Blue", color: "#00ccff", price: 10 },
+            { id: 2, name: "Lime Glow", color: "#ccff00", price: 25 },
+            { id: 3, name: "Ice Cyan", color: "#aaffff", price: 50 },
+            { id: 4, name: "Emerald", color: "#00ff88", price: 75 },
+            { id: 5, name: "Deep Red", color: "#ff1100", price: 100 },
+            { id: 6, name: "Grape Purple", color: "#9900ff", price: 150 },
+            { id: 7, name: "Ocean Blue", color: "#0044ff", price: 200 },
+            { id: 8, name: "Amber", color: "#ffaa00", price: 250 },
+            { id: 9, name: "Hot Orange", color: "#ff4400", price: 300 },
+            { id: 10, name: "Ghost White", color: "#ffffff", price: 350 },
+            { id: 11, name: "Toxic Green", color: "#00ff00", price: 400 },
+            { id: 12, name: "Berry", color: "#ff0088", price: 500 },
+            { id: 13, name: "Candy Pink", color: "#ff88ff", price: 600 },
+            { id: 14, name: "Indigo", color: "#4400ff", price: 700 },
+            { id: 15, name: "Turquoise", color: "#00ffcc", price: 850 },
+            { id: 16, name: "Lemon", color: "#ffff00", price: 1000 },
+            { id: 17, name: "Sunset", color: "#ff6600", price: 1200 },
+            { id: 18, name: "Shadow", color: "#333333", price: 1500 },
+            { id: 19, name: "Royal Gold", color: "#ffd700", price: 2000 },
+            { id: 20, name: "Diamond Blue", color: "#00ffff", price: 2500 },
+            { id: 21, name: "Plasma Red", color: "#ff0044", price: 3000 },
+            { id: 22, name: "Galaxy Purple", color: "#5500aa", price: 3500 },
+            { id: 23, name: "Matrix Green", color: "#003300", price: 4000 },
+            { id: 24, name: "VOID Black", color: "#111111", price: 5000 }
+        ];
+
+        let totalCoins = parseInt(localStorage.getItem('arrowDash_coins')) || 0;
+        let highScore = parseInt(localStorage.getItem('arrowDash_highScore')) || 0;
+        let ownedArrows = JSON.parse(localStorage.getItem('arrowDash_owned')) || [0];
+        let equippedId = parseInt(localStorage.getItem('arrowDash_equipped')) || 0;
+
+        let score = 0, gameState = 'home', frames = 0, speed = 3.5, screenShake = 0;
+        const GRAVITY = 0.42, JUMP = -7.5, PIPE_GAP = 220, PIPE_W = 75;
+
+        let particles = [];
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x; this.y = y; this.color = color;
+                this.size = Math.random() * 4 + 2;
+                this.vx = Math.random() * -2 - 1;
+                this.vy = (Math.random() - 0.5) * 2;
+                this.alpha = 1;
+            }
+            update() { this.x += this.vx; this.y += this.vy; this.alpha -= 0.025; }
+            draw() { ctx.globalAlpha = Math.max(0, this.alpha); ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1; }
+        }
+
+        const arrow = {
+            x: 80, y: 350, w: 40, h: 22, v: 0,
+            draw() {
+                const config = arrowsData.find(a => a.id === equippedId);
+                ctx.save();
+                ctx.translate(this.x + this.w/2, this.y + this.h/2);
+                ctx.rotate(Math.min(Math.PI/4, Math.max(-Math.PI/4, this.v * 0.06)));
+                ctx.shadowBlur = 15; ctx.shadowColor = config.color;
+                ctx.fillStyle = config.color; ctx.strokeStyle = "#fff"; ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(-this.w/2, -this.h/4); ctx.lineTo(0, -this.h/4); ctx.lineTo(0, -this.h/2);
+                ctx.lineTo(this.w/2, 0); ctx.lineTo(0, this.h/2); ctx.lineTo(0, this.h/4);
+                ctx.lineTo(-this.w/2, this.h/4);
+                ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+            },
+            update() {
+                if(gameState !== 'playing') return;
+                this.v += GRAVITY; this.y += this.v;
+                if(this.y + this.h > canvas.height || this.y < -60) gameOver();
+                if(frames % 2 === 0) particles.push(new Particle(this.x, this.y + this.h/2, arrowsData.find(a => a.id === equippedId).color));
+            }
+        };
+
+        const pipes = {
+            list: [], coins: [],
+            update() {
+                if(gameState !== 'playing') return;
+                let interval = Math.floor(145 / (speed/3.5));
+                if(frames % interval === 0) {
+                    let top = Math.random() * (canvas.height - PIPE_GAP - 250) + 120;
+                    this.list.push({ x: canvas.width, t: top, passed: false });
+                    this.coins.push({ x: canvas.width + PIPE_W/2, y: top + PIPE_GAP/2, collected: false });
+                }
+                for(let i=this.list.length-1; i>=0; i--) {
+                    let p = this.list[i]; p.x -= speed;
+                    if(arrow.x+arrow.w-5 > p.x && arrow.x+5 < p.x+PIPE_W) {
+                        if(arrow.y+5 < p.t || arrow.y+arrow.h-5 > p.t+PIPE_GAP) gameOver();
+                    }
+                    if(!p.passed && p.x+PIPE_W < arrow.x) {
+                        score++; p.passed = true;
+                        document.getElementById('currentScoreHud').innerText = score;
+                        if(score > highScore) { highScore = score; saveData(); }
+                        if(score % 10 === 0) speed += 0.2;
+                    }
+                    if(p.x < -100) this.list.splice(i, 1);
+                }
+                for(let i=this.coins.length-1; i>=0; i--) {
+                    let c = this.coins[i]; c.x -= speed;
+                    if(!c.collected) {
+                        let dx = (arrow.x+arrow.w/2) - c.x, dy = (arrow.y+arrow.h/2) - c.y;
+                        if(Math.sqrt(dx*dx+dy*dy) < 35) {
+                            c.collected = true; totalCoins++; saveData(); updateCoinUI();
+                            playTone(800, 1500, 0.05);
+                        }
+                    }
+                    if(c.x < -100) this.coins.splice(i, 1);
+                }
+            },
+            draw() {
+                this.list.forEach(p => {
+                    let grad = ctx.createLinearGradient(p.x, 0, p.x+PIPE_W, 0);
+                    grad.addColorStop(0, '#0a0a20'); grad.addColorStop(0.5, '#1a1a3a'); grad.addColorStop(1, '#0a0a20');
+                    ctx.fillStyle = grad; ctx.strokeStyle = '#0ff'; ctx.lineWidth = 2;
+                    ctx.fillRect(p.x, 0, PIPE_W, p.t); ctx.strokeRect(p.x, 0, PIPE_W, p.t);
+                    ctx.fillRect(p.x, p.t+PIPE_GAP, PIPE_W, canvas.height); ctx.strokeRect(p.x, p.t+PIPE_GAP, PIPE_W, canvas.height);
+                });
+                this.coins.forEach(c => {
+                    if(!c.collected) {
+                        // Drawing Realistic Golden Coin using canvas (No emoji box issues)
+                        ctx.save();
+                        ctx.translate(c.x, c.y);
+                        ctx.rotate(frames * 0.05);
+                        
+                        // Outer Glow
+                        ctx.shadowBlur = 15; ctx.shadowColor = "#ffd700";
+                        
+                        // Main Coin Body
+                        let coinGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, 12);
+                        coinGrad.addColorStop(0, '#ffe066');
+                        coinGrad.addColorStop(0.8, '#ffb300');
+                        coinGrad.addColorStop(1, '#cc8e00');
+                        
+                        ctx.fillStyle = coinGrad;
+                        ctx.beginPath();
+                        ctx.arc(0, 0, 12 + Math.sin(frames*0.1)*1.5, 0, Math.PI*2);
+                        ctx.fill();
+                        
+                        // Inner Detail
+                        ctx.strokeStyle = "rgba(0,0,0,0.2)";
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.arc(0, 0, 7, 0, Math.PI*2);
+                        ctx.stroke();
+                        
+                        ctx.restore();
+                    }
+                });
+            }
+        };
+
+        const audio = new (window.AudioContext || window.webkitAudioContext)();
+        function playTone(f1, f2, d) {
+            try {
+                const o = audio.createOscillator(), g = audio.createGain();
+                o.connect(g); g.connect(audio.destination);
+                o.frequency.setValueAtTime(f1, audio.currentTime);
+                o.frequency.exponentialRampToValueAtTime(f2, audio.currentTime+d);
+                g.gain.setValueAtTime(0.04, audio.currentTime);
+                g.gain.linearRampToValueAtTime(0, audio.currentTime+d);
+                o.start(); o.stop(audio.currentTime+d);
+            } catch(e){}
+        }
+
+        function saveData() {
+            localStorage.setItem('arrowDash_coins', totalCoins);
+            localStorage.setItem('arrowDash_highScore', highScore);
+            localStorage.setItem('arrowDash_owned', JSON.stringify(ownedArrows));
+            localStorage.setItem('arrowDash_equipped', equippedId);
+        }
+
+        function updateCoinUI() { document.getElementById('coinCount').innerText = totalCoins; }
+
+        function openHome() {
+            gameState = 'home';
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById('homeScreen').classList.add('active');
+            document.getElementById('hud').style.display = 'none';
+        }
+
+        function openShop() {
+            const list = document.getElementById('shop-list'); list.innerHTML = "";
+            arrowsData.forEach(item => {
+                const div = document.createElement('div'); div.className = "shop-item";
+                let btnContent = "";
+                if(equippedId === item.id) btnContent = `EQUIPPED`;
+                else if(ownedArrows.includes(item.id)) btnContent = `SELECT`;
+                else btnContent = `<div class="coin-icon" style="width:12px;height:12px;border-width:1px;"></div> ${item.price}`;
+
+                let btnStyle = "";
+                if(equippedId === item.id) btnStyle = "background:#0f0; color:#000";
+                else if(ownedArrows.includes(item.id)) btnStyle = "background:#0ff; color:#000";
+                else btnStyle = `background:${totalCoins >= item.price ? '#ffd700' : '#444'}; color:${totalCoins >= item.price ? '#000' : '#888'}`;
+
+                const btnAction = equippedId === item.id ? "" : 
+                                 ownedArrows.includes(item.id) ? `onclick="equipItem(${item.id})"` : 
+                                 (totalCoins >= item.price ? `onclick="buyItem(${item.id}, ${item.price})"` : "");
+
+                div.innerHTML = `
+                    <div style="display:flex; align-items:center;">
+                        <div style="width:12px; height:12px; border-radius:50%; background:${item.color}; margin-right:10px; box-shadow:0 0 5px ${item.color}"></div>
+                        <span style="color:#fff; font-size:14px;">${item.name}</span>
+                    </div> 
+                    <button class="buy-btn" style="${btnStyle}" ${btnAction}>${btnContent}</button>`;
+                list.appendChild(div);
+            });
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById('shopScreen').classList.add('active');
+        }
+
+        window.buyItem = (id, price) => { if(totalCoins >= price) { totalCoins -= price; ownedArrows.push(id); saveData(); updateCoinUI(); openShop(); playTone(600, 1000, 0.2); } };
+        window.equipItem = (id) => { equippedId = id; saveData(); openShop(); playTone(400, 600, 0.1); };
+
+        function openSettings() { if(gameState === 'playing') { gameState = 'paused'; document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById('settingsScreen').classList.add('active'); } }
+        function resumeGame() { gameState = 'playing'; document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); }
+
+        function startGame() {
+            gameState = 'playing'; score = 0; frames = 0; speed = 3.5;
+            arrow.y = 350; arrow.v = JUMP; pipes.list = []; pipes.coins = []; particles = [];
+            document.getElementById('currentScoreHud').innerText = "0";
+            document.getElementById('bestScoreLabel').innerText = "RECORD: " + highScore;
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById('hud').style.display = 'block';
+            if(audio.state === 'suspended') audio.resume();
+        }
+
+        function gameOver() {
+            if(gameState === 'gameover') return;
+            gameState = 'gameover'; screenShake = 20;
+            document.getElementById('finalScore').innerText = score;
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById('gameOverScreen').classList.add('active');
+            playTone(150, 50, 0.4);
+        }
+
+        function loop() {
+            ctx.save();
+            if(screenShake > 0) { ctx.translate((Math.random()-0.5)*screenShake, (Math.random()-0.5)*screenShake); screenShake *= 0.85; }
+            ctx.clearRect(0, 0, 400, 700);
+            
+            ctx.fillStyle = '#fff';
+            for(let i=0; i<25; i++) {
+                let x = (Math.sin(i*123) * 1000 + frames * -0.3) % 400; if(x<0) x+=400;
+                let y = (Math.cos(i*456) * 700 + 700) % 700;
+                ctx.globalAlpha = 0.05 * (i%4); ctx.beginPath(); ctx.arc(x, y, 1, 0, Math.PI*2); ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+            
+            particles.forEach((p, idx) => { p.update(); p.draw(); if(p.alpha <= 0) particles.splice(idx, 1); });
+
+            arrow.update(); pipes.update();
+            if(gameState === 'playing') frames++;
+            pipes.draw(); arrow.draw();
+            ctx.restore();
+            requestAnimationFrame(loop);
+        }
+
+        const handleJump = (e) => { if(e) e.preventDefault(); if(gameState === 'playing') { arrow.v = JUMP; playTone(300, 500, 0.1); } };
+        canvas.addEventListener('mousedown', handleJump);
+        canvas.addEventListener('touchstart', handleJump, {passive: false});
+
+        updateCoinUI();
+        requestAnimationFrame(loop);
+    </script>
+</body>
+</html>
